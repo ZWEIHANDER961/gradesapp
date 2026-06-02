@@ -1,22 +1,17 @@
 import type { Prisma } from "@prisma/client";
 
-export type MateriaWithCursos = Prisma.MateriaGetPayload<{
-  include: { cursos: true };
-}>;
-
-export type CursoSeccionWithDetails = Prisma.CursoSeccionGetPayload<{
+export type CursoSeccionWithRelations = Prisma.CursoSeccionGetPayload<{
   include: {
-    materia: true;
-    estudiantes: { include: { calificaciones: true } };
-    ras: { include: { actividades: { include: { calificaciones: true } } } };
+    estudiantes: { orderBy: { numeroOrden: "asc" } };
+    materias: { include: { materia: true } };
   };
 }>;
 
-export type CursoSeccionWithRA = Prisma.CursoSeccionGetPayload<{
+export type CursoMateriaWithDetails = Prisma.CursoMateriaGetPayload<{
   include: {
+    curso: true;
     materia: true;
-    ras: { include: { actividades: true } };
-    estudiantes: true;
+    ras: { include: { actividades: { include: { calificaciones: true } } } };
   };
 }>;
 
@@ -36,15 +31,6 @@ export interface ActionResult<T> {
   success: boolean;
   data?: T;
   error?: string;
-}
-
-export interface GradeMatrixRow {
-  estudianteId: string;
-  nombre: string;
-  apellido: string;
-  actividades: { actividadId: string; puntaje: number }[];
-  raNotas: { raId: string; codigoRA: string; nota: number }[];
-  notaFinal: number;
 }
 
 export interface DashboardMetrics {

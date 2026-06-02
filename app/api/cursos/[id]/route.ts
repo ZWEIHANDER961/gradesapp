@@ -1,24 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const curso = await prisma.cursoSeccion.findUnique({
       where: { id: params.id },
       include: {
-        materia: { select: { id: true, nombre: true } },
-        estudiantes: {
-          orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
-        },
-        ras: {
+        estudiantes: { orderBy: { numeroOrden: "asc" } },
+        materias: {
           include: {
-            actividades: {
+            materia: true,
+            ras: {
               include: {
-                calificaciones: {
-                  select: { estudianteId: true, puntaje: true },
+                actividades: {
+                  include: {
+                    calificaciones: {
+                      select: { estudianteId: true, puntaje: true },
+                    },
+                  },
                 },
               },
             },
