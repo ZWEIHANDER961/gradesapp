@@ -16,7 +16,6 @@
     "@kilocode/cli-windows-x64": "^7.3.12",
     "@kilocode/cli-windows-x64-baseline": "^7.3.12",
     "@netlify/plugin-nextjs": "^5.15.1",
-    "@next/swc-win32-x64-msvc": "^13.5.1",
     "@prisma/client": "^5.22.0",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",
