@@ -11,14 +11,25 @@ const MATERIAS_SEED = [
 ];
 
 async function main() {
-  const count = await prisma.materia.count();
-  if (count === 0) {
+  const countMaterias = await prisma.materia.count();
+  const countCursos = await prisma.cursoSeccion.count();
+
+  if (countMaterias === 0) {
     for (const nombre of MATERIAS_SEED) {
       await prisma.materia.create({ data: { nombre } });
     }
     console.log("Seed: 5 materias insertadas correctamente.");
   } else {
-    console.log(`Seed: Ya existen ${count} materias. No se insertaron duplicados.`);
+    console.log(`Seed: Ya existen ${countMaterias} materias. No se insertaron duplicados.`);
+  }
+
+  if (countCursos === 0) {
+    await prisma.cursoSeccion.create({
+      data: { nombre: "4to A - Informática" },
+    });
+    console.log("Seed: Curso de ejemplo creado.");
+  } else {
+    console.log(`Seed: Ya existen ${countCursos} cursos.`);
   }
 }
 
@@ -30,3 +41,4 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+

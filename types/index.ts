@@ -1,10 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
-export type CursoSeccionWithRelations = Prisma.CursoSeccionGetPayload<{
-  include: {
-    estudiantes: { orderBy: { numeroOrden: "asc" } };
-    materias: { include: { materia: true } };
-  };
+export type MateriaWithCursos = Prisma.MateriaGetPayload<{
+  include: { cursos: true };
 }>;
 
 export type CursoMateriaWithDetails = Prisma.CursoMateriaGetPayload<{
@@ -31,6 +28,15 @@ export interface ActionResult<T> {
   success: boolean;
   data?: T;
   error?: string;
+}
+
+export interface GradeMatrixRow {
+  estudianteId: string;
+  nombre: string;
+  apellido: string;
+  actividades: { actividadId: string; puntaje: number }[];
+  raNotas: { raId: string; codigoRA: string; nota: number }[];
+  notaFinal: number;
 }
 
 export interface DashboardMetrics {

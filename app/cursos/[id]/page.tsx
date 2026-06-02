@@ -2,9 +2,7 @@
 
 import { Fragment, useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import {
-  ArrowLeft, Plus, Trash2, Users, BookOpen, Pencil, FileUp, AlertTriangle, Calculator
-} from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Users, BookOpen, Pencil, FileUp, AlertTriangle, Calculator, Link as LinkIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,13 +11,15 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import type { ActionResult } from "@/types";
 import { guardarCalificacionInline } from "@/app/actions/calificacionActions";
 import { importarExcelEstudiantes, actualizarEstudiante, eliminarEstudiante, crearEstudiante } from "@/app/actions/estudianteActions";
 import { crearRA, actualizarRA, eliminarRA, crearActividad, actualizarActividad, eliminarActividad } from "@/app/actions/raActions";
+import { obtenerTodasMaterias } from "@/app/actions/materiaActions";
+import { asignarMateriaExistente } from "@/app/actions/cursoActions";
 
 interface CursoDetail {
   id: string;
@@ -59,10 +59,14 @@ export default function CursoPage() {
   const [localGrades, setLocalGrades] = useState<Record<string, Record<string, number>>>({});
 
   // Modals States
-  const [modalType, setModalType] = useState<"estudiante"|"excel"|"ra"|"act"|null>(null);
+  const [modalType, setModalType] = useState<"estudiante"|"excel"|"ra"|"act"|"asignarMateria"|null>(null);
   const [formEst, setFormEst] = useState({ id: "", num: 0, nom: "", ape: "" });
   const [formRa, setFormRa] = useState({ id: "", cod: "", desc: "", pond: 0 });
   const [formAct, setFormAct] = useState({ id: "", raId: "", nom: "", pond: 0 });
+  
+  // States for Asignar Materia
+  const [allMaterias, setAllMaterias] = useState<{id: string, nombre: string}[]>([]);
+  const [materiaToAssign, setMateriaToAssign] = useState("");
 
   const fetchCurso = useCallback(async () => {
     const res = await fetch(`/api/cursos/${cursoId}`);
@@ -93,11 +97,8 @@ export default function CursoPage() {
   useEffect(() => { fetchCurso(); }, [fetchCurso]);
 
   const materiaActual = useMemo(() => curso?.materias.find(m => m.id === selectedMateriaId), [curso, selectedMateriaId]);
-  
   const sumRAs = useMemo(() => materiaActual?.ras.reduce((acc, ra) => acc + ra.ponderacion, 0) || 0, [materiaActual]);
-  
   const invalidRAs = useMemo(() => materiaActual?.ras.filter(ra => ra.actividades.reduce((a, b) => a + b.ponderacion, 0) !== 100) || [], [materiaActual]);
-
   const isValidMatrix = sumRAs === 100 && invalidRAs.length === 0;
 
   const calculateRANota = useCallback((raId: string, estudianteId: string): number => {
@@ -186,6 +187,30 @@ export default function CursoPage() {
     }
   };
 
+  const abrirModalAsignarMateria = async () => {
+    const res = await obtenerTodasMaterias();
+    if (res.success && res.data) {
+      const asignadas = curso?.materias.map(m => m.materia.id) || [];
+      setAllMaterias(res.data.filter(m => !asignadas.includes(m.id)));
+      setMateriaToAssign("");
+      setModalType("asignarMateria");
+    } else {
+      toast.error("Error al cargar materias disponibles.");
+    }
+  };
+
+  const submitAsignarMateria = async () => {
+    if (!materiaToAssign) return;
+    const res = await asignarMateriaExistente(cursoId, materiaToAssign);
+    if (res.success) {
+      toast.success("Materia vinculada con éxito.");
+      setModalType(null);
+      fetchCurso();
+    } else {
+      toast.error(res.error || "Error al vincular.");
+    }
+  };
+
   if (loading) return <div className="p-8"><Skeleton className="h-8 w-64 mb-6" /><Skeleton className="h-96" /></div>;
   if (!curso) return <div className="p-8">Curso no encontrado.</div>;
 
@@ -255,21 +280,31 @@ export default function CursoPage() {
           </TabsContent>
 
           <TabsContent value="materias" className="space-y-4">
-            <div className="flex gap-4 items-center bg-white p-4 rounded-lg shadow-sm border">
-              <Label className="font-semibold text-gray-700">Materia Seleccionada:</Label>
-              <Select value={selectedMateriaId} onValueChange={setSelectedMateriaId}>
-                <SelectTrigger className="w-80">
-                  <SelectValue placeholder="Seleccione una materia..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {curso.materias.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>{m.materia.nombre}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Cabecera de Materias - NUEVO BOTÓN AÑADIDO AQUÍ */}
+            <div className="flex gap-4 items-center bg-white p-4 rounded-lg shadow-sm border justify-between">
+              <div className="flex items-center gap-4">
+                <Label className="font-semibold text-gray-700">Materia Seleccionada:</Label>
+                {curso.materias.length === 0 ? (
+                  <div className="text-sm text-yellow-600 font-medium">Este curso aún no tiene materias asignadas.</div>
+                ) : (
+                  <Select value={selectedMateriaId} onValueChange={setSelectedMateriaId}>
+                    <SelectTrigger className="w-80">
+                      <SelectValue placeholder="Seleccione una materia..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {curso.materias.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>{m.materia.nombre}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              <Button variant="outline" onClick={abrirModalAsignarMateria}>
+                <LinkIcon className="w-4 h-4 mr-2" /> Vincular Materia Existente
+              </Button>
             </div>
 
-            {materiaActual && (
+            {materiaActual ? (
               <>
                 {!isValidMatrix && (
                   <Card className="bg-yellow-50 border-yellow-300">
@@ -386,11 +421,43 @@ export default function CursoPage() {
                   </CardContent>
                 </Card>
               </>
+            ) : (
+              <div className="text-center py-12 text-gray-500">
+                <BookOpen className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+                <p>Usa el botón <strong>"Vincular Materia Existente"</strong> arriba para poder evaluar a los estudiantes en esta pestaña.</p>
+              </div>
             )}
           </TabsContent>
         </Tabs>
 
         {/* Modals CRUD */}
+        <Dialog open={modalType === "asignarMateria"} onOpenChange={(o) => !o && setModalType(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Vincular Materia Existente</DialogTitle>
+              <DialogDescription>Asigna una materia del sistema a este curso para evaluarla.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 pt-4">
+              {allMaterias.length === 0 ? (
+                <p className="text-sm text-yellow-600 font-medium">Todas las materias del sistema ya están en este curso o no has creado ninguna en la sección de Materias.</p>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label>Seleccione la Materia</Label>
+                    <Select value={materiaToAssign} onValueChange={setMateriaToAssign}>
+                      <SelectTrigger><SelectValue placeholder="Elegir materia..."/></SelectTrigger>
+                      <SelectContent>
+                        {allMaterias.map(m => <SelectItem key={m.id} value={m.id}>{m.nombre}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button onClick={submitAsignarMateria} className="w-full" disabled={!materiaToAssign}>Vincular al Curso</Button>
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={modalType === "estudiante"} onOpenChange={(o) => !o && setModalType(null)}>
           <DialogContent>
             <DialogHeader><DialogTitle>{formEst.id ? "Editar" : "Nuevo"} Estudiante</DialogTitle></DialogHeader>
