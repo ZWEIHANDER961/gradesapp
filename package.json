@@ -13,8 +13,6 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
-    "@kilocode/cli-windows-x64": "^7.3.12",
-    "@kilocode/cli-windows-x64-baseline": "^7.3.12",
     "@netlify/plugin-nextjs": "^5.15.1",
     "@prisma/client": "^5.22.0",
     "@radix-ui/react-accordion": "^1.2.0",
