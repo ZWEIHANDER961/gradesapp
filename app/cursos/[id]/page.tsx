@@ -19,7 +19,7 @@ import { guardarCalificacionInline } from "@/app/actions/calificacionActions";
 import { importarExcelEstudiantes, actualizarEstudiante, eliminarEstudiante, crearEstudiante } from "@/app/actions/estudianteActions";
 import { crearRA, actualizarRA, eliminarRA, crearActividad, actualizarActividad, eliminarActividad } from "@/app/actions/raActions";
 import { obtenerTodasMaterias } from "@/app/actions/materiaActions";
-import { asignarMateriaExistente } from "@/app/actions/cursoActions";
+import { asignarMateriaExistente, obtenerCursoDetalle } from "@/app/actions/cursoActions";
 
 interface CursoDetail {
   id: string;
@@ -69,8 +69,7 @@ export default function CursoPage() {
   const [materiaToAssign, setMateriaToAssign] = useState("");
 
   const fetchCurso = useCallback(async () => {
-    const res = await fetch(`/api/cursos/${cursoId}`);
-    const data: ActionResult<CursoDetail> = await res.json();
+    const data: ActionResult<CursoDetail> = await obtenerCursoDetalle(cursoId);
     if (data.success && data.data) {
       setCurso(data.data);
       if (data.data.materias.length > 0 && !selectedMateriaId) {

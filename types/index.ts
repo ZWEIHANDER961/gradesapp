@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
 export type MateriaWithCursos = Prisma.MateriaGetPayload<{
-  include: { cursos: true };
+  include: { cursos: { include: { curso: true } } };
 }>;
 
 export type CursoMateriaWithDetails = Prisma.CursoMateriaGetPayload<{

@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import type { ActionResult } from "@/types";
+import { obtenerMateriasConCursos, crearMateria, eliminarMateria } from "@/app/actions/materiaActions";
+import { obtenerCursosDeMateria, crearCursoYAsignar, eliminarCurso } from "@/app/actions/cursoActions";
 
 interface MateriaItem {
   id: string;
@@ -47,8 +49,7 @@ export default function MateriasPage() {
   const [cursoDialogOpen, setCursoDialogOpen] = useState(false);
 
   const fetchMaterias = useCallback(async () => {
-    const res = await fetch("/api/materias");
-    const data: ActionResult<MateriaItem[]> = await res.json();
+    const data: ActionResult<MateriaItem[]> = await obtenerMateriasConCursos();
     if (data.success && data.data) {
       setMaterias(data.data);
     }
@@ -56,8 +57,7 @@ export default function MateriasPage() {
   }, []);
 
   const fetchCursos = useCallback(async (materiaId: string) => {
-    const res = await fetch(`/api/cursos?materiaId=${materiaId}`);
-    const data: ActionResult<CursoItem[]> = await res.json();
+    const data: ActionResult<CursoItem[]> = await obtenerCursosDeMateria(materiaId);
     if (data.success && data.data) {
       setCursos(data.data);
     }
@@ -80,12 +80,7 @@ export default function MateriasPage() {
       toast.error("El nombre de la materia es requerido.");
       return;
     }
-    const res = await fetch("/api/materias", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nombre: newMateriaName.trim() }),
-    });
-    const data: ActionResult<string> = await res.json();
+    const data: ActionResult<string> = await crearMateria(newMateriaName.trim());
     if (data.success) {
       toast.success("Materia creada exitosamente.");
       setNewMateriaName("");
@@ -97,8 +92,7 @@ export default function MateriasPage() {
   };
 
   const handleEliminarMateria = async (id: string) => {
-    const res = await fetch(`/api/materias?id=${id}`, { method: "DELETE" });
-    const data: ActionResult<boolean> = await res.json();
+    const data: ActionResult<boolean> = await eliminarMateria(id);
     if (data.success) {
       toast.success("Materia eliminada.");
       if (selectedMateria === id) {
@@ -116,12 +110,7 @@ export default function MateriasPage() {
       toast.error("El nombre del curso es requerido.");
       return;
     }
-    const res = await fetch("/api/cursos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nombre: newCursoName.trim(), materiaId: selectedMateria }),
-    });
-    const data: ActionResult<string> = await res.json();
+    const data: ActionResult<string> = await crearCursoYAsignar(newCursoName.trim(), selectedMateria);
     if (data.success) {
       toast.success("Curso creado exitosamente.");
       setNewCursoName("");
@@ -134,8 +123,7 @@ export default function MateriasPage() {
 
   const handleEliminarCurso = async (id: string) => {
     if (!selectedMateria) return;
-    const res = await fetch(`/api/cursos?id=${id}`, { method: "DELETE" });
-    const data: ActionResult<boolean> = await res.json();
+    const data: ActionResult<boolean> = await eliminarCurso(id);
     if (data.success) {
       toast.success("Curso eliminado.");
       fetchCursos(selectedMateria);

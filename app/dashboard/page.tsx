@@ -7,10 +7,19 @@ import { Button } from "@/components/ui/button";
 
 async function getCursos() {
   const cursos = await prisma.cursoSeccion.findMany({
-    include: { _count: { select: { estudiantes: true, materias: true } } },
+    include: { 
+      estudiantes: true,
+      materias: true 
+    },
     orderBy: { nombre: "asc" },
   });
-  return cursos;
+  return cursos.map(c => ({
+    ...c,
+    _count: {
+      estudiantes: c.estudiantes.length,
+      materias: c.materias.length
+    }
+  }));
 }
 
 export default async function DashboardPage() {
@@ -103,7 +112,7 @@ export default async function DashboardPage() {
                       </div>
                       <div className="w-px h-8 bg-gray-200" />
                       <div className="text-center flex-1">
-                        <div className="text-lg font-bold text-purple-600">{curso._count.materias}</div>
+                        <div className="text-lg font-bold text-purple-600">{curso._count.ras || 0}</div>
                         <div className="text-gray-500">Materias</div>
                       </div>
                     </div>

@@ -21,3 +21,13 @@ export async function guardarCalificacionInline(
     return { success: false, error: msg };
   }
 }
+
+export async function eliminarCalificacion(id: string): Promise<ActionResult<boolean>> {
+  try {
+    await prisma.calificacion.delete({ where: { id } });
+    return { success: true, data: true };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Error desconocido";
+    return { success: false, error: msg };
+  }
+}

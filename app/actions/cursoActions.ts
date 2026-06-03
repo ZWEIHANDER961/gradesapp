@@ -9,15 +9,14 @@ export async function obtenerCursosDeMateria(materiaId: string): Promise<ActionR
       where: { materiaId },
       include: {
         curso: {
-          include: { _count: { select: { estudiantes: true, materias: true } } }
+          include: { _count: { select: { estudiantes: true } } }
         }
       }
     });
-    // Extraemos y mapeamos para que el frontend lo lea fácilmente
     const data = relaciones.map(r => ({
       id: r.curso.id,
       nombre: r.curso.nombre,
-      _count: { estudiantes: r.curso._count.estudiantes, ras: r.curso._count.materias }
+      _count: { estudiantes: r.curso._count.estudiantes, ras: 0 }
     }));
     return { success: true, data };
   } catch (error) {
@@ -25,11 +24,38 @@ export async function obtenerCursosDeMateria(materiaId: string): Promise<ActionR
   }
 }
 
+export async function obtenerCursoDetalle(cursoId: string): Promise<ActionResult<any>> {
+  try {
+    const curso = await prisma.cursoSeccion.findUnique({
+      where: { id: cursoId },
+      include: {
+        estudiantes: { orderBy: { numeroOrden: "asc" } },
+        materias: {
+          include: {
+            materia: true,
+            ras: {
+              include: {
+                actividades: {
+                  include: {
+                    calificaciones: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+    if (!curso) return { success: false, error: "Curso no encontrado" };
+    return { success: true, data: curso };
+  } catch (error) {
+    return { success: false, error: "Error al obtener curso" };
+  }
+}
+
 export async function crearCursoYAsignar(nombre: string, materiaId: string): Promise<ActionResult<string>> {
   try {
-    // 1. Crea el curso
     const curso = await prisma.cursoSeccion.create({ data: { nombre: nombre.trim() } });
-    // 2. Crea el vínculo inmediato con la materia seleccionada
     await prisma.cursoMateria.create({ data: { cursoId: curso.id, materiaId } });
     return { success: true, data: curso.id };
   } catch (error) {
