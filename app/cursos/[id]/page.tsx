@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unescaped-entities */
 "use client";
 
 import { Fragment, useState, useEffect, useCallback, useMemo } from "react";
