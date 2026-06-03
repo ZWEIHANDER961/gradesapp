@@ -365,7 +365,7 @@ export default function CursoPage() {
                                   <div className="flex justify-center items-center gap-1">
                                     <span className="truncate max-w-[80px]" title={act.nombre}>{act.nombre}</span>
                                     <span className="text-gray-400 text-[10px] font-bold">{act.ponderacion}%</span>
-                                    <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-100 rounded text-gray-500 absolute right-1" onClick={() => { setFormAct({ id: act.id, raId: act.raId, nom: act.nombre, pond: act.ponderacion }); setModalType("act"); }}><Pencil className="w-3 h-3"/></button>
+                                    <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-100 rounded text-gray-500 absolute right-1" onClick={() => { setFormAct({ id: act.id, raId: ra.id, nom: act.nombre, pond: act.ponderacion }); setModalType("act"); }}><Pencil className="w-3 h-3"/></button>
                                   </div>
                                 </th>
                               ))
