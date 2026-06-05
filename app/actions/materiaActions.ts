@@ -42,3 +42,18 @@ export async function eliminarMateria(id: string): Promise<ActionResult<boolean>
     return { success: false, error: "Error al eliminar materia" };
   }
 }
+
+export async function actualizarMateria(id: string, nombre: string): Promise<ActionResult<boolean>> {
+  try {
+    await prisma.materia.update({
+      where: { id },
+      data: { nombre: nombre.trim() },
+    });
+    return { success: true, data: true };
+  } catch (error: any) {
+    if (error.message?.includes("Unique")) {
+      return { success: false, error: "Ya existe otra materia con ese nombre." };
+    }
+    return { success: false, error: "Error al actualizar la materia" };
+  }
+}

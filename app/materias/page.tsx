@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
-  BookOpen, Plus, Trash2, ChevronRight, GraduationCap, ArrowLeft,
+  BookOpen, Plus, Trash2, ChevronRight, GraduationCap, ArrowLeft, Pencil
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import type { ActionResult } from "@/types";
-import { obtenerMateriasConCursos, crearMateria, eliminarMateria } from "@/app/actions/materiaActions";
+import { obtenerMateriasConCursos, crearMateria, eliminarMateria, actualizarMateria } from "@/app/actions/materiaActions";
 import { obtenerCursosDeMateria, crearCursoYAsignar, eliminarCurso } from "@/app/actions/cursoActions";
 
 interface MateriaItem {
@@ -43,28 +43,28 @@ export default function MateriasPage() {
   const [cursos, setCursos] = useState<CursoItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMateria, setSelectedMateria] = useState<string | null>(materiaIdParam);
+  
   const [newMateriaName, setNewMateriaName] = useState("");
   const [newCursoName, setNewCursoName] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [cursoDialogOpen, setCursoDialogOpen] = useState(false);
 
+  // Estados para editar materia
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [materiaToEdit, setMateriaToEdit] = useState<{id: string, nombre: string} | null>(null);
+
   const fetchMaterias = useCallback(async () => {
-    const res = await obtenerMateriasConCursos();
-    if (res.success && res.data) {
-      const formatted: MateriaItem[] = res.data.map((m: any) => ({
-        id: m.id,
-        nombre: m.nombre,
-        _count: { cursos: m._count?.cursos ?? 0 }
-      }));
-      setMaterias(formatted);
+    const data: ActionResult<MateriaItem[]> = await obtenerMateriasConCursos();
+    if (data.success && data.data) {
+      setMaterias(data.data);
     }
     setLoading(false);
   }, []);
 
   const fetchCursos = useCallback(async (materiaId: string) => {
-    const res = await obtenerCursosDeMateria(materiaId);
-    if (res.success && res.data) {
-      setCursos(res.data);
+    const data: ActionResult<CursoItem[]> = await obtenerCursosDeMateria(materiaId);
+    if (data.success && data.data) {
+      setCursos(data.data);
     }
   }, []);
 
@@ -85,20 +85,20 @@ export default function MateriasPage() {
       toast.error("El nombre de la materia es requerido.");
       return;
     }
-    const res = await crearMateria(newMateriaName);
-    if (res.success) {
+    const data: ActionResult<string> = await crearMateria(newMateriaName.trim());
+    if (data.success) {
       toast.success("Materia creada exitosamente.");
       setNewMateriaName("");
       setDialogOpen(false);
       fetchMaterias();
     } else {
-      toast.error(res.error || "Error al crear materia.");
+      toast.error(data.error || "Error al crear materia.");
     }
   };
 
   const handleEliminarMateria = async (id: string) => {
-    const res = await eliminarMateria(id);
-    if (res.success) {
+    const data: ActionResult<boolean> = await eliminarMateria(id);
+    if (data.success) {
       toast.success("Materia eliminada.");
       if (selectedMateria === id) {
         setSelectedMateria(null);
@@ -106,7 +106,28 @@ export default function MateriasPage() {
       }
       fetchMaterias();
     } else {
-      toast.error(res.error || "Error al eliminar materia.");
+      toast.error(data.error || "Error al eliminar materia.");
+    }
+  };
+
+  const openEditMateriaDialog = (materia: MateriaItem) => {
+    setMateriaToEdit({ id: materia.id, nombre: materia.nombre });
+    setEditDialogOpen(true);
+  };
+
+  const handleActualizarMateria = async () => {
+    if (!materiaToEdit || !materiaToEdit.nombre.trim()) {
+      toast.error("El nombre de la materia es requerido.");
+      return;
+    }
+    const data = await actualizarMateria(materiaToEdit.id, materiaToEdit.nombre.trim());
+    if (data.success) {
+      toast.success("Materia actualizada exitosamente.");
+      setEditDialogOpen(false);
+      setMateriaToEdit(null);
+      fetchMaterias();
+    } else {
+      toast.error(data.error || "Error al actualizar materia.");
     }
   };
 
@@ -115,25 +136,25 @@ export default function MateriasPage() {
       toast.error("El nombre del curso es requerido.");
       return;
     }
-    const res = await crearCursoYAsignar(newCursoName, selectedMateria);
-    if (res.success) {
+    const data: ActionResult<string> = await crearCursoYAsignar(newCursoName.trim(), selectedMateria);
+    if (data.success) {
       toast.success("Curso creado exitosamente.");
       setNewCursoName("");
       setCursoDialogOpen(false);
       fetchCursos(selectedMateria);
     } else {
-      toast.error(res.error || "Error al crear curso.");
+      toast.error(data.error || "Error al crear curso.");
     }
   };
 
   const handleEliminarCurso = async (id: string) => {
     if (!selectedMateria) return;
-    const res = await eliminarCurso(id);
-    if (res.success) {
+    const data: ActionResult<boolean> = await eliminarCurso(id);
+    if (data.success) {
       toast.success("Curso eliminado.");
       fetchCursos(selectedMateria);
     } else {
-      toast.error(res.error || "Error al eliminar curso.");
+      toast.error(data.error || "Error al eliminar curso.");
     }
   };
 
@@ -233,6 +254,17 @@ export default function MateriasPage() {
                         </p>
                       </div>
                       <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditMateriaDialog(materia);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -357,6 +389,31 @@ export default function MateriasPage() {
             )}
           </div>
         </div>
+
+        {/* MODAL PARA EDITAR MATERIA */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Materia</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-materia-nombre">Nombre de la Materia</Label>
+                <Input
+                  id="edit-materia-nombre"
+                  placeholder="Ej: Programación Avanzada"
+                  value={materiaToEdit?.nombre || ""}
+                  onChange={(e) => setMateriaToEdit(prev => prev ? {...prev, nombre: e.target.value} : null)}
+                  onKeyDown={(e) => e.key === "Enter" && handleActualizarMateria()}
+                />
+              </div>
+              <Button onClick={handleActualizarMateria} className="w-full">
+                Guardar Cambios
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
       </main>
     </div>
   );

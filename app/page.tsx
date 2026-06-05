@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { BookOpen, Plus, Trash2, ChevronRight, GraduationCap, ArrowLeft } from "lucide-react";
+import { BookOpen, Plus, Trash2, ChevronRight, GraduationCap, ArrowLeft, Pencil } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { obtenerMateriasConCursos, crearMateria, eliminarMateria } from "@/app/actions/materiaActions";
+import { obtenerMateriasConCursos, crearMateria, eliminarMateria, actualizarMateria } from "@/app/actions/materiaActions";
 import { obtenerCursosDeMateria, crearCursoYAsignar, eliminarCurso } from "@/app/actions/cursoActions";
 
 interface MateriaItem {
@@ -39,6 +39,10 @@ function MateriasContent() {
   const [newCursoName, setNewCursoName] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [cursoDialogOpen, setCursoDialogOpen] = useState(false);
+
+  // Estados para editar materia
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [materiaToEdit, setMateriaToEdit] = useState<{id: string, nombre: string} | null>(null);
 
   const fetchMaterias = useCallback(async () => {
     const res = await obtenerMateriasConCursos();
@@ -94,6 +98,27 @@ function MateriasContent() {
       fetchMaterias();
     } else {
       toast.error(res.error);
+    }
+  };
+
+  const openEditMateriaDialog = (materia: MateriaItem) => {
+    setMateriaToEdit({ id: materia.id, nombre: materia.nombre });
+    setEditDialogOpen(true);
+  };
+
+  const handleActualizarMateria = async () => {
+    if (!materiaToEdit || !materiaToEdit.nombre.trim()) {
+      toast.error("El nombre de la materia es requerido.");
+      return;
+    }
+    const data = await actualizarMateria(materiaToEdit.id, materiaToEdit.nombre.trim());
+    if (data.success) {
+      toast.success("Materia actualizada exitosamente.");
+      setEditDialogOpen(false);
+      setMateriaToEdit(null);
+      fetchMaterias();
+    } else {
+      toast.error(data.error || "Error al actualizar materia.");
     }
   };
 
@@ -190,7 +215,18 @@ function MateriasContent() {
                       <p className="text-xs text-gray-500">{materia._count.cursos} {materia._count.cursos === 1 ? "curso" : "cursos"}</p>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); handleEliminarMateria(materia.id); }}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditMateriaDialog(materia);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); handleEliminarMateria(materia.id); }}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                       <ChevronRight className="h-4 w-4 text-gray-400" />
@@ -268,6 +304,31 @@ function MateriasContent() {
             )}
           </div>
         </div>
+
+        {/* MODAL PARA EDITAR MATERIA */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Materia</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-materia-nombre-page">Nombre de la Materia</Label>
+                <Input
+                  id="edit-materia-nombre-page"
+                  placeholder="Ej: Programación Avanzada"
+                  value={materiaToEdit?.nombre || ""}
+                  onChange={(e) => setMateriaToEdit(prev => prev ? {...prev, nombre: e.target.value} : null)}
+                  onKeyDown={(e) => e.key === "Enter" && handleActualizarMateria()}
+                />
+              </div>
+              <Button onClick={handleActualizarMateria} className="w-full">
+                Guardar Cambios
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
       </main>
     </>
   );
