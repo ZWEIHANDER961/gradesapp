@@ -49,17 +49,22 @@ export default function MateriasPage() {
   const [cursoDialogOpen, setCursoDialogOpen] = useState(false);
 
   const fetchMaterias = useCallback(async () => {
-    const data: ActionResult<MateriaItem[]> = await obtenerMateriasConCursos();
-    if (data.success && data.data) {
-      setMaterias(data.data);
+    const res = await obtenerMateriasConCursos();
+    if (res.success && res.data) {
+      const formatted: MateriaItem[] = res.data.map((m: any) => ({
+        id: m.id,
+        nombre: m.nombre,
+        _count: { cursos: m._count?.cursos ?? 0 }
+      }));
+      setMaterias(formatted);
     }
     setLoading(false);
   }, []);
 
   const fetchCursos = useCallback(async (materiaId: string) => {
-    const data: ActionResult<CursoItem[]> = await obtenerCursosDeMateria(materiaId);
-    if (data.success && data.data) {
-      setCursos(data.data);
+    const res = await obtenerCursosDeMateria(materiaId);
+    if (res.success && res.data) {
+      setCursos(res.data);
     }
   }, []);
 
@@ -80,20 +85,20 @@ export default function MateriasPage() {
       toast.error("El nombre de la materia es requerido.");
       return;
     }
-    const data: ActionResult<string> = await crearMateria(newMateriaName.trim());
-    if (data.success) {
+    const res = await crearMateria(newMateriaName);
+    if (res.success) {
       toast.success("Materia creada exitosamente.");
       setNewMateriaName("");
       setDialogOpen(false);
       fetchMaterias();
     } else {
-      toast.error(data.error || "Error al crear materia.");
+      toast.error(res.error || "Error al crear materia.");
     }
   };
 
   const handleEliminarMateria = async (id: string) => {
-    const data: ActionResult<boolean> = await eliminarMateria(id);
-    if (data.success) {
+    const res = await eliminarMateria(id);
+    if (res.success) {
       toast.success("Materia eliminada.");
       if (selectedMateria === id) {
         setSelectedMateria(null);
@@ -101,7 +106,7 @@ export default function MateriasPage() {
       }
       fetchMaterias();
     } else {
-      toast.error(data.error || "Error al eliminar materia.");
+      toast.error(res.error || "Error al eliminar materia.");
     }
   };
 
@@ -110,25 +115,25 @@ export default function MateriasPage() {
       toast.error("El nombre del curso es requerido.");
       return;
     }
-    const data: ActionResult<string> = await crearCursoYAsignar(newCursoName.trim(), selectedMateria);
-    if (data.success) {
+    const res = await crearCursoYAsignar(newCursoName, selectedMateria);
+    if (res.success) {
       toast.success("Curso creado exitosamente.");
       setNewCursoName("");
       setCursoDialogOpen(false);
       fetchCursos(selectedMateria);
     } else {
-      toast.error(data.error || "Error al crear curso.");
+      toast.error(res.error || "Error al crear curso.");
     }
   };
 
   const handleEliminarCurso = async (id: string) => {
     if (!selectedMateria) return;
-    const data: ActionResult<boolean> = await eliminarCurso(id);
-    if (data.success) {
+    const res = await eliminarCurso(id);
+    if (res.success) {
       toast.success("Curso eliminado.");
       fetchCursos(selectedMateria);
     } else {
-      toast.error(data.error || "Error al eliminar curso.");
+      toast.error(res.error || "Error al eliminar curso.");
     }
   };
 
