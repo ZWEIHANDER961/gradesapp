@@ -1,9 +1,9 @@
 /* eslint-disable react/no-unescaped-entities */
 "use client";
 
-import { Fragment, useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, Users, BookOpen, Pencil, FileUp, AlertTriangle, Calculator, Link as LinkIcon } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, BookOpen, Pencil, FileUp, AlertTriangle, Calculator, Link as LinkIcon, Search, Download, UserPlus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,9 +12,10 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import * as xlsx from "xlsx";
 import type { ActionResult } from "@/types";
 import { guardarCalificacionInline } from "@/app/actions/calificacionActions";
 import { importarExcelEstudiantes, actualizarEstudiante, eliminarEstudiante, crearEstudiante } from "@/app/actions/estudianteActions";
@@ -22,27 +23,50 @@ import { crearRA, actualizarRA, eliminarRA, crearActividad, actualizarActividad,
 import { obtenerTodasMaterias } from "@/app/actions/materiaActions";
 import { asignarMateriaExistente, obtenerCursoDetalle } from "@/app/actions/cursoActions";
 
+// --- INTERFACES ESTRICTAS ---
+interface Calificacion {
+  estudianteId: string;
+  puntaje: number;
+}
+
+interface Actividad {
+  id: string;
+  nombre: string;
+  ponderacion: number;
+  calificaciones: Calificacion[];
+}
+
+interface ResultadoAprendizaje {
+  id: string;
+  codigoRA: string;
+  descripcion: string;
+  ponderacion: number;
+  actividades: Actividad[];
+}
+
+interface MateriaAsignada {
+  id: string;
+  materia: {
+    id: string;
+    nombre: string;
+  };
+  ras: ResultadoAprendizaje[];
+}
+
+interface Estudiante {
+  id: string;
+  numeroOrden: number;
+  nombre: string;
+  apellido: string;
+}
+
 interface CursoDetail {
   id: string;
   nombre: string;
-  estudiantes: { id: string; numeroOrden: number; nombre: string; apellido: string }[];
-  materias: {
-    id: string;
-    materia: { id: string; nombre: string };
-    ras: {
-      id: string;
-      codigoRA: string;
-      descripcion: string;
-      ponderacion: number;
-      actividades: {
-        id: string;
-        nombre: string;
-        ponderacion: number;
-        calificaciones: { estudianteId: string; puntaje: number }[];
-      }[];
-    }[];
-  }[];
+  estudiantes: Estudiante[];
+  materias: MateriaAsignada[];
 }
+// ----------------------------
 
 function round1(val: number): number {
   return Math.round(val * 10) / 10;
@@ -56,8 +80,13 @@ export default function CursoPage() {
   const [curso, setCurso] = useState<CursoDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("estudiantes");
+  // --- NUEVOS ESTADOS PARA EL CONTROL DE LA VISTA ---
   const [selectedMateriaId, setSelectedMateriaId] = useState<string>("");
-  const [localGrades, setLocalGrades] = useState<Record<string, Record<string, number>>>({});
+  const [selectedRaId, setSelectedRaId] = useState<string>(""); // Picker de RA
+  const [searchTerm, setSearchTerm] = useState(""); // Filtro de estudiantes
+
+  // null significa que la celda está vacía (no evaluado)
+  const [localGrades, setLocalGrades] = useState<Record<string, Record<string, number | null>>>({});
 
   // Modals States
   const [modalType, setModalType] = useState<"estudiante"|"excel"|"ra"|"act"|"asignarMateria"|null>(null);
@@ -73,15 +102,22 @@ export default function CursoPage() {
     const data: ActionResult<CursoDetail> = await obtenerCursoDetalle(cursoId);
     if (data.success && data.data) {
       setCurso(data.data);
+      
+      // Autoseleccionar la primera materia y su primer RA si existen
       if (data.data.materias.length > 0 && !selectedMateriaId) {
-        setSelectedMateriaId(data.data.materias[0].id);
+        const primeraMateria = data.data.materias[0];
+        setSelectedMateriaId(primeraMateria.id);
+        if (primeraMateria.ras.length > 0) {
+          setSelectedRaId(primeraMateria.ras[0].id);
+        }
       }
-      const grades: Record<string, Record<string, number>> = {};
-      data.data.materias.forEach(cm => {
-        cm.ras.forEach(ra => {
-          ra.actividades.forEach(act => {
+
+      const grades: Record<string, Record<string, number | null>> = {};
+      data.data.materias.forEach((cm) => {
+        cm.ras.forEach((ra) => {
+          ra.actividades.forEach((act) => {
             grades[act.id] = {};
-            act.calificaciones.forEach(cal => {
+            act.calificaciones.forEach((cal) => {
               grades[act.id][cal.estudianteId] = cal.puntaje;
             });
           });
@@ -96,59 +132,102 @@ export default function CursoPage() {
 
   useEffect(() => { fetchCurso(); }, [fetchCurso]);
 
+  // --- LÓGICA DE SELECCIÓN Y FILTRADO ---
   const materiaActual = useMemo(() => curso?.materias.find(m => m.id === selectedMateriaId), [curso, selectedMateriaId]);
+  
+  // 1. Obtener solo el RA seleccionado
+  const raActual = useMemo(() => materiaActual?.ras.find(r => r.id === selectedRaId), [materiaActual, selectedRaId]);
+
+  // 2. Filtrar estudiantes en tiempo real
+  const estudiantesFiltrados = useMemo(() => {
+    if (!curso) return [];
+    const query = searchTerm.toLowerCase();
+    return curso.estudiantes.filter(est => 
+      est.nombre.toLowerCase().includes(query) || 
+      est.apellido.toLowerCase().includes(query) || 
+      est.numeroOrden.toString().includes(query)
+    );
+  }, [curso, searchTerm]);
   const sumRAs = useMemo(() => materiaActual?.ras.reduce((acc, ra) => acc + ra.ponderacion, 0) || 0, [materiaActual]);
   const invalidRAs = useMemo(() => materiaActual?.ras.filter(ra => ra.actividades.reduce((a, b) => a + b.ponderacion, 0) !== 100) || [], [materiaActual]);
   const isValidMatrix = sumRAs === 100 && invalidRAs.length === 0;
-
-  const calculateRANota = useCallback((raId: string, estudianteId: string): number => {
-    if (!materiaActual) return 0;
-    const ra = materiaActual.ras.find((r) => r.id === raId);
-    if (!ra || ra.actividades.length === 0) return 0;
-    let nota = 0;
-    for (const act of ra.actividades) {
-      const puntaje = localGrades[act.id]?.[estudianteId] ?? 0;
-      nota += puntaje * (act.ponderacion / 100);
-    }
-    return round1(nota);
-  }, [materiaActual, localGrades]);
-
-  const calculateNotaFinal = useCallback((estudianteId: string): number => {
-    if (!materiaActual) return 0;
-    let notaFinal = 0;
-    for (const ra of materiaActual.ras) {
-      const notaRA = calculateRANota(ra.id, estudianteId);
-      notaFinal += notaRA * (ra.ponderacion / 100);
-    }
-    return round1(notaFinal);
-  }, [materiaActual, calculateRANota]);
 
   const handleGradeChange = (actId: string, estId: string, val: string) => {
     if (!isValidMatrix) {
       toast.error("La matriz no es válida matemáticamente (Revise sumas de 100%).");
       return;
     }
-    const num = val === "" ? 0 : parseFloat(val);
-    if (isNaN(num)) return;
-    const clamped = Math.min(100, Math.max(0, num));
+    const num = val === "" ? null : parseFloat(val);
+    const clamped = num !== null ? Math.min(100, Math.max(0, num)) : null;
     setLocalGrades(prev => ({ ...prev, [actId]: { ...prev[actId], [estId]: clamped } }));
   };
 
   const handleGradeSave = async (actId: string, estId: string) => {
     if (!isValidMatrix) return;
-    const puntaje = localGrades[actId]?.[estId] ?? 0;
+    const puntaje = localGrades[actId]?.[estId] ?? null;
     const res = await guardarCalificacionInline(estId, actId, puntaje);
     if (!res.success) toast.error(res.error);
   };
 
+  // 4. LÓGICA DE PROMEDIOS SEPARADOS (PROGRESIVOS)
+  const calculateRANota = useCallback((raId: string, estudianteId: string): number | null => {
+    if (!materiaActual) return null;
+    const ra = materiaActual.ras.find(r => r.id === raId);
+    if (!ra || ra.actividades.length === 0) return null;
+    
+    let notaAcumulada = 0;
+    let pesoEvaluado = 0;
+    let tieneEvaluaciones = false;
+
+    for (const act of ra.actividades) {
+      const puntaje = localGrades[act.id]?.[estudianteId];
+      if (puntaje !== undefined && puntaje !== null) {
+        notaAcumulada += puntaje * (act.ponderacion / 100);
+        pesoEvaluado += (act.ponderacion / 100);
+        tieneEvaluaciones = true;
+      }
+    }
+    
+    if (!tieneEvaluaciones || pesoEvaluado === 0) return null;
+    return round1(notaAcumulada / pesoEvaluado);
+  }, [materiaActual, localGrades]);
+
+  const calculateNotaFinal = useCallback((estudianteId: string): number | null => {
+    if (!materiaActual) return null;
+    let notaFinal = 0;
+    let pesoEvaluado = 0;
+    let tieneEvaluaciones = false;
+
+    for (const ra of materiaActual.ras) {
+      const notaRA = calculateRANota(ra.id, estudianteId);
+      if (notaRA !== null) {
+        notaFinal += notaRA * (ra.ponderacion / 100);
+        pesoEvaluado += (ra.ponderacion / 100);
+        tieneEvaluaciones = true;
+      }
+    }
+    
+    if (!tieneEvaluaciones || pesoEvaluado === 0) return null;
+    return round1(notaFinal / pesoEvaluado);
+  }, [materiaActual, calculateRANota]);
+
+  // 6. OPTIMIZACIÓN DEL FORMULARIO DE REGISTRO
   const submitEstudiante = async () => {
-    if (!formEst.nom.trim() || !formEst.ape.trim()) return toast.error("Nombre y Apellido requeridos");
-    if (formEst.id) {
-      const r = await actualizarEstudiante(formEst.id, formEst.num, formEst.nom, formEst.ape);
-      if (r.success) { toast.success("Editado"); setModalType(null); fetchCurso(); } else toast.error(r.error);
+    const { id, num, nom, ape } = formEst;
+    if (!nom.trim() || !ape.trim()) return toast.error("Nombre y Apellido son requeridos");
+    if (num <= 0) return toast.error("El número de orden debe ser mayor a 0");
+    
+    const duplicado = curso?.estudiantes.find(e => e.numeroOrden === num && e.id !== id);
+    if (duplicado) {
+      return toast.error(`El número de lista ${num} ya está asignado a ${duplicado.nombre} ${duplicado.apellido}.`);
+    }
+
+    if (id) {
+      const r = await actualizarEstudiante(id, num, nom, ape);
+      if (r.success) { toast.success("Estudiante actualizado"); setModalType(null); fetchCurso(); } else toast.error(r.error);
     } else {
-      const r = await crearEstudiante(formEst.num, formEst.nom, formEst.ape, cursoId);
-      if (r.success) { toast.success("Creado"); setModalType(null); fetchCurso(); } else toast.error(r.error);
+      const r = await crearEstudiante(num, nom, ape, cursoId);
+      if (r.success) { toast.success("Estudiante registrado"); setModalType(null); fetchCurso(); } else toast.error(r.error);
     }
   };
 
@@ -209,6 +288,32 @@ export default function CursoPage() {
     } else {
       toast.error(res.error || "Error al vincular.");
     }
+  };
+
+  // 5. EXPORTACIÓN ESTRUCTURADA A EXCEL
+  const exportarRA = () => {
+    if (!raActual || !curso) return;
+    
+    const data = estudiantesFiltrados.map(est => {
+      const fila: Record<string, string | number> = {
+        "Nº Lista": est.numeroOrden,
+        "Estudiante": `${est.apellido}, ${est.nombre}`
+      };
+      
+      raActual.actividades.forEach(act => {
+        fila[act.nombre] = localGrades[act.id]?.[est.id] ?? "";
+      });
+      
+      const prom = calculateRANota(raActual.id, est.id);
+      fila["Promedio RA"] = prom !== null ? prom : "S/E";
+      return fila;
+    });
+
+    const worksheet = xlsx.utils.json_to_sheet(data);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, "Calificaciones");
+    xlsx.writeFile(workbook, `Calificaciones_${raActual.codigoRA}.xlsx`);
+    toast.success("Excel generado con éxito");
   };
 
   if (loading) return <div className="p-8"><Skeleton className="h-8 w-64 mb-6" /><Skeleton className="h-96" /></div>;
@@ -280,23 +385,52 @@ export default function CursoPage() {
           </TabsContent>
 
           <TabsContent value="materias" className="space-y-4">
-            {/* Cabecera de Materias - NUEVO BOTÓN AÑADIDO AQUÍ */}
-            <div className="flex gap-4 items-center bg-white p-4 rounded-lg shadow-sm border justify-between">
-              <div className="flex items-center gap-4">
-                <Label className="font-semibold text-gray-700">Materia Seleccionada:</Label>
-                {curso.materias.length === 0 ? (
-                  <div className="text-sm text-yellow-600 font-medium">Este curso aún no tiene materias asignadas.</div>
-                ) : (
-                  <Select value={selectedMateriaId} onValueChange={setSelectedMateriaId}>
-                    <SelectTrigger className="w-80">
-                      <SelectValue placeholder="Seleccione una materia..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {curso.materias.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>{m.materia.nombre}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            {/* Cabecera de Materias y Picker de RA */}
+            <div className="flex gap-4 items-center bg-white p-4 rounded-lg shadow-sm border justify-between flex-wrap">
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex flex-col gap-1">
+                  <Label className="font-semibold text-gray-700">Materia:</Label>
+                  {curso.materias.length === 0 ? (
+                    <div className="text-sm text-yellow-600 font-medium mt-2">Sin materias asignadas.</div>
+                  ) : (
+                    <Select value={selectedMateriaId} onValueChange={(val) => {
+                      setSelectedMateriaId(val);
+                      const mat = curso.materias.find(m => m.id === val);
+                      if (mat && mat.ras.length > 0) {
+                        setSelectedRaId(mat.ras[0].id);
+                      } else {
+                        setSelectedRaId("");
+                      }
+                    }}>
+                      <SelectTrigger className="w-64">
+                        <SelectValue placeholder="Seleccione una materia..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {curso.materias.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>{m.materia.nombre}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                {/* PICKER DE RA */}
+                {materiaActual && materiaActual.ras.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <Label className="font-semibold text-gray-700">Resultado de Aprendizaje (RA):</Label>
+                    <Select value={selectedRaId} onValueChange={setSelectedRaId}>
+                      <SelectTrigger className="w-64">
+                        <SelectValue placeholder="Seleccione un RA..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {materiaActual.ras.map((ra) => (
+                          <SelectItem key={ra.id} value={ra.id}>
+                            {ra.codigoRA} - {ra.descripcion.substring(0, 20)}...
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 )}
               </div>
               <Button variant="outline" onClick={abrirModalAsignarMateria}>
@@ -325,71 +459,92 @@ export default function CursoPage() {
                 )}
 
                 <Card className="shadow-sm">
-                  <CardHeader className="pb-0 pt-4 flex flex-row items-center justify-between">
+                  <CardHeader className="pb-0 pt-4 flex flex-row items-center justify-between flex-wrap gap-4">
                     <div>
-                      <CardTitle className="text-lg">Libro de Calificaciones</CardTitle>
-                      <CardDescription>Haga clic en los íconos de lápiz ✏️ de las cabeceras para editar ponderaciones.</CardDescription>
+                      <CardTitle className="text-lg">
+                        Libro de Calificaciones {raActual ? `- ${raActual.codigoRA}` : ""}
+                      </CardTitle>
+                      <CardDescription>Visualizando únicamente las actividades del RA seleccionado.</CardDescription>
                     </div>
-                    <Button size="sm" onClick={() => { setFormRa({ id: "", cod: "", desc: "", pond: 0 }); setModalType("ra"); }}>
-                      <Plus className="w-4 h-4 mr-1"/> Añadir RA
-                    </Button>
+                    
+                    <div className="flex items-center gap-3">
+                      <div className="relative w-64">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+                        <Input 
+                          placeholder="Buscar alumno o N°..." 
+                          className="pl-9" 
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                      </div>
+                      <Button variant="outline" onClick={exportarRA} disabled={!raActual}>
+                        <Download className="w-4 h-4 mr-2"/> Excel
+                      </Button>
+                      <Button size="sm" onClick={() => { setFormRa({ id: "", cod: "", desc: "", pond: 0 }); setModalType("ra"); }}>
+                        <Plus className="w-4 h-4 mr-1"/> Añadir RA
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className="p-0 mt-4 overflow-x-auto w-full">
-                    <table className="w-full text-sm border-collapse min-w-[800px]">
-                      <thead>
-                        <tr>
-                          <th rowSpan={2} className="sticky left-0 z-20 bg-gray-100 border-b border-r px-4 py-3 text-left font-semibold text-gray-700 shadow-[1px_0_0_0_#e5e7eb]">
-                            Estudiantes
-                          </th>
-                          {materiaActual.ras.map(ra => (
-                            <th key={ra.id} colSpan={ra.actividades.length || 1} className="bg-blue-50 border-b border-r px-2 py-2 text-center align-top relative group">
-                              <div className="flex justify-center items-center gap-2 font-bold text-blue-900">
-                                {ra.codigoRA} <span className="text-blue-600">({ra.ponderacion}%)</span>
-                                <button className="opacity-0 group-hover:opacity-100 p-1 hover:bg-blue-200 rounded text-blue-700" onClick={() => { setFormRa({ id: ra.id, cod: ra.codigoRA, desc: ra.descripcion, pond: ra.ponderacion }); setModalType("ra"); }}><Pencil className="w-3 h-3"/></button>
-                                <button className="opacity-0 group-hover:opacity-100 p-1 hover:bg-blue-200 rounded text-green-700" onClick={() => { setFormAct({ id: "", raId: ra.id, nom: "", pond: 0 }); setModalType("act"); }} title="Añadir Actividad"><Plus className="w-4 h-4"/></button>
-                              </div>
-                              <p className="text-[10px] text-blue-700/70 truncate max-w-[200px] mx-auto font-normal" title={ra.descripcion}>{ra.descripcion}</p>
+                    {raActual ? (
+                      <table className="w-full text-sm border-collapse min-w-[800px]">
+                        <thead>
+                          <tr>
+                            <th rowSpan={2} className="sticky left-0 z-20 bg-gray-100 border-b border-r px-4 py-3 text-left font-semibold text-gray-700 shadow-[1px_0_0_0_#e5e7eb]">
+                              Estudiantes
                             </th>
-                          ))}
-                          <th rowSpan={2} className="bg-gray-800 text-white border-b border-l px-4 py-3 text-center font-bold w-24 shadow-[-1px_0_0_0_#e5e7eb]">
-                            Nota Final
-                          </th>
-                        </tr>
-                        <tr>
-                          {materiaActual.ras.map(ra => (
-                            ra.actividades.length === 0 ? (
-                              <th key={`empty-${ra.id}`} className="bg-white border-b border-r px-2 py-2 text-center text-xs text-red-500 font-medium">Sin Actividades</th>
+                            <th colSpan={raActual.actividades.length || 1} className="bg-blue-50 border-b border-r px-2 py-2 text-center align-top relative group">
+                              <div className="flex justify-center items-center gap-2 font-bold text-blue-900">
+                                {raActual.codigoRA} <span className="text-blue-600">({raActual.ponderacion}%)</span>
+                                <button className="opacity-0 group-hover:opacity-100 p-1 hover:bg-blue-200 rounded text-blue-700" onClick={() => { setFormRa({ id: raActual.id, cod: raActual.codigoRA, desc: raActual.descripcion, pond: raActual.ponderacion }); setModalType("ra"); }}><Pencil className="w-3 h-3"/></button>
+                                <button className="opacity-0 group-hover:opacity-100 p-1 hover:bg-blue-200 rounded text-green-700" onClick={() => { setFormAct({ id: "", raId: raActual.id, nom: "", pond: 0 }); setModalType("act"); }} title="Añadir Actividad"><Plus className="w-4 h-4"/></button>
+                              </div>
+                              <p className="text-[10px] text-blue-700/70 truncate max-w-[200px] mx-auto font-normal" title={raActual.descripcion}>{raActual.descripcion}</p>
+                            </th>
+                            <th rowSpan={2} className="bg-indigo-100 text-indigo-900 border-b border-l px-4 py-3 text-center font-bold w-24 shadow-[-1px_0_0_0_#e5e7eb]">
+                              Prom. RA
+                            </th>
+                            <th rowSpan={2} className="bg-gray-800 text-white border-b border-l px-4 py-3 text-center font-bold w-24 shadow-[-1px_0_0_0_#e5e7eb]">
+                              Nota Final
+                            </th>
+                          </tr>
+                          <tr>
+                            {raActual.actividades.length === 0 ? (
+                              <th className="bg-white border-b border-r px-2 py-2 text-center text-xs text-red-500 font-medium">Sin Actividades</th>
                             ) : (
-                              ra.actividades.map(act => (
+                              raActual.actividades.map((act) => (
                                 <th key={act.id} className="bg-white border-b border-r px-2 py-1 text-center font-medium text-gray-700 relative group min-w-[100px]">
                                   <div className="flex justify-center items-center gap-1">
                                     <span className="truncate max-w-[80px]" title={act.nombre}>{act.nombre}</span>
                                     <span className="text-gray-400 text-[10px] font-bold">{act.ponderacion}%</span>
-                                    <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-100 rounded text-gray-500 absolute right-1" onClick={() => { setFormAct({ id: act.id, raId: ra.id, nom: act.nombre, pond: act.ponderacion }); setModalType("act"); }}><Pencil className="w-3 h-3"/></button>
+                                    <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-100 rounded text-gray-500 absolute right-1" onClick={() => { setFormAct({ id: act.id, raId: raActual.id, nom: act.nombre, pond: act.ponderacion }); setModalType("act"); }}><Pencil className="w-3 h-3"/></button>
                                   </div>
                                 </th>
                               ))
-                            )
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200 bg-white">
-                        {curso.estudiantes.map((est) => {
-                          const nf = calculateNotaFinal(est.id);
-                          const colorBadge = nf >= 70 ? 'bg-green-100 text-green-800 border-green-200' : nf >= 60 ? 'bg-yellow-100 text-yellow-800 border-yellow-200' : 'bg-red-100 text-red-800 border-red-200';
-                          return (
-                            <tr key={est.id} className="hover:bg-blue-50/30">
-                              <td className="sticky left-0 z-10 bg-white px-4 py-2 border-r shadow-[1px_0_0_0_#e5e7eb]">
-                                <div className="font-medium text-gray-900 whitespace-nowrap">{est.apellido}, {est.nombre}</div>
-                              </td>
-                              {materiaActual.ras.map(ra => (
-                                ra.actividades.length === 0 ? (
-                                  <td key={`empty-cell-${ra.id}-${est.id}`} className="bg-gray-50 border-r px-2 text-center"></td>
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {estudiantesFiltrados.map((est) => {
+                            const nf = calculateNotaFinal(est.id);
+                            const nRa = calculateRANota(raActual.id, est.id);
+                            const colorBadge = nf !== null && nf >= 70 ? 'bg-green-100 text-green-800 border-green-200' : nf !== null && nf >= 60 ? 'bg-yellow-100 text-yellow-800 border-yellow-200' : 'bg-red-100 text-red-800 border-red-200';
+                            return (
+                              <tr key={est.id} className="hover:bg-blue-50/30">
+                                <td className="sticky left-0 z-10 bg-white px-4 py-2 border-r shadow-[1px_0_0_0_#e5e7eb]">
+                                  <div className="font-medium text-gray-900 whitespace-nowrap">
+                                    <span className="text-gray-400 mr-2 text-xs">#{est.numeroOrden}</span>
+                                    {est.apellido}, {est.nombre}
+                                  </div>
+                                </td>
+                                {raActual.actividades.length === 0 ? (
+                                  <td className="bg-gray-50 border-r px-2 text-center"></td>
                                 ) : (
-                                  ra.actividades.map(act => (
+                                  raActual.actividades.map((act) => (
                                     <td key={act.id} className="px-1 py-1 border-r text-center align-middle">
                                       <input
                                         type="number" min={0} max={100} step={0.1}
+                                        placeholder="-"
                                         disabled={!isValidMatrix}
                                         className="w-16 h-8 text-center text-sm border rounded mx-auto disabled:bg-gray-100 disabled:text-gray-400 focus:ring-2 focus:ring-blue-500 outline-none"
                                         value={localGrades[act.id]?.[est.id] ?? ""}
@@ -399,16 +554,30 @@ export default function CursoPage() {
                                       />
                                     </td>
                                   ))
-                                )
-                              ))}
-                              <td className="px-2 py-2 border-l text-center bg-gray-50 font-bold shadow-[-1px_0_0_0_#e5e7eb]">
-                                <Badge variant="outline" className={`text-sm ${colorBadge}`}>{nf.toFixed(1)}</Badge>
+                                )}
+                                <td className="px-2 py-2 border-l text-center bg-indigo-50 font-semibold text-indigo-700 shadow-[-1px_0_0_0_#e5e7eb]">
+                                  {nRa !== null ? nRa.toFixed(1) : "-"}
+                                </td>
+                                <td className="px-2 py-2 border-l text-center bg-gray-50 font-bold shadow-[-1px_0_0_0_#e5e7eb]">
+                                  {nf !== null ? <Badge variant="outline" className={`text-sm ${colorBadge}`}>{nf.toFixed(1)}</Badge> : <span className="text-gray-400">-</span>}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {estudiantesFiltrados.length === 0 && (
+                            <tr>
+                              <td colSpan={raActual.actividades.length + 3} className="text-center py-8 text-gray-500">
+                                No se encontraron estudiantes que coincidan con la búsqueda.
                               </td>
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                          )}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="text-center py-12 text-gray-500">
+                        No hay RAs creados para esta materia.
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -416,7 +585,7 @@ export default function CursoPage() {
                   <CardContent className="p-4 flex items-center gap-3">
                     <Calculator className="text-slate-400 h-8 w-8" />
                     <div className="text-sm text-slate-600">
-                      <strong>Cálculo Aplicado:</strong> Cada Actividad vale su % dentro de su RA. La sumatoria de las Actividades da la nota del RA. Luego, la <em>Nota Final</em> se calcula sumando el valor porcentual de cada RA obtenido.
+                      <strong>Cálculo Progresivo:</strong> El promedio se calcula únicamente sobre las actividades y RAs que ya han sido evaluados. Las celdas vacías no penalizan la nota del estudiante.
                     </div>
                   </CardContent>
                 </Card>
@@ -459,22 +628,51 @@ export default function CursoPage() {
         </Dialog>
 
         <Dialog open={modalType === "estudiante"} onOpenChange={(o) => !o && setModalType(null)}>
-          <DialogContent>
-            <DialogHeader><DialogTitle>{formEst.id ? "Editar" : "Nuevo"} Estudiante</DialogTitle></DialogHeader>
-            <div className="space-y-4 pt-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">Nº Orden</Label>
-                <Input type="number" className="col-span-3" value={formEst.num} onChange={e => setFormEst({...formEst, num: parseInt(e.target.value)||0})} />
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-xl flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-blue-600" />
+                {formEst.id ? "Editar" : "Añadir"} Estudiante
+              </DialogTitle>
+              <DialogDescription>
+                Asegúrate de no duplicar el número de lista dentro de esta sección.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-5 pt-4">
+              <div className="space-y-1">
+                <Label className="text-sm font-semibold text-gray-700">Número de Lista (Orden)</Label>
+                <Input 
+                  type="number" 
+                  min={1} 
+                  className="bg-gray-50 focus:bg-white transition-colors"
+                  value={formEst.num} 
+                  onChange={e => setFormEst({...formEst, num: parseInt(e.target.value)||0})} 
+                />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">Nombres</Label>
-                <Input className="col-span-3" value={formEst.nom} onChange={e => setFormEst({...formEst, nom: e.target.value})} />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-sm font-semibold text-gray-700">Nombres</Label>
+                  <Input 
+                    className="bg-gray-50 focus:bg-white transition-colors"
+                    placeholder="Ej: Juan Carlos"
+                    value={formEst.nom} 
+                    onChange={e => setFormEst({...formEst, nom: e.target.value})} 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-sm font-semibold text-gray-700">Apellidos</Label>
+                  <Input 
+                    className="bg-gray-50 focus:bg-white transition-colors"
+                    placeholder="Ej: Pérez Gómez"
+                    value={formEst.ape} 
+                    onChange={e => setFormEst({...formEst, ape: e.target.value})} 
+                  />
+                </div>
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">Apellidos</Label>
-                <Input className="col-span-3" value={formEst.ape} onChange={e => setFormEst({...formEst, ape: e.target.value})} />
+              <div className="flex justify-end pt-4 border-t mt-6">
+                <Button variant="outline" className="mr-2" onClick={() => setModalType(null)}>Cancelar</Button>
+                <Button onClick={submitEstudiante}>Confirmar Guardado</Button>
               </div>
-              <Button onClick={submitEstudiante} className="w-full">Guardar</Button>
             </div>
           </DialogContent>
         </Dialog>
