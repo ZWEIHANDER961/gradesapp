@@ -4,15 +4,12 @@ import { prisma } from "@/lib/prisma";
 import type { ActionResult } from "@/types";
 
 export async function crearRA(cursoMateriaId: string, codigoRA: string, descripcion: string, ponderacion: number): Promise<ActionResult<string>> {
-  console.log("[DEBUG] crearRA start", { cursoMateriaId, codigoRA });
   try {
     const ra = await prisma.resultadoAprendizaje.create({
       data: { codigoRA, descripcion, ponderacion, cursoMateriaId },
     });
-    console.log("[DEBUG] crearRA success", ra.id);
     return { success: true, data: ra.id };
   } catch (error: unknown) {
-    console.error("[DEBUG] crearRA error:", error);
     return { success: false, error: error instanceof Error ? error.message : "Error" };
   }
 }
