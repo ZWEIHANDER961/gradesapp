@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, BookOpen, Pencil, FileUp, AlertTriangle, Calculator, Link as LinkIcon, Search, Download, UserPlus } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, BookOpen, Pencil, FileUp, Calculator, Link as LinkIcon, Search, Download, UserPlus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -148,22 +148,14 @@ export default function CursoPage() {
       est.numeroOrden.toString().includes(query)
     );
   }, [curso, searchTerm]);
-  const sumRAs = useMemo(() => materiaActual?.ras.reduce((acc, ra) => acc + ra.ponderacion, 0) || 0, [materiaActual]);
-  const invalidRAs = useMemo(() => materiaActual?.ras.filter(ra => ra.actividades.reduce((a, b) => a + b.ponderacion, 0) !== 100) || [], [materiaActual]);
-  const isValidMatrix = sumRAs === 100 && invalidRAs.length === 0;
 
   const handleGradeChange = (actId: string, estId: string, val: string) => {
-    if (!isValidMatrix) {
-      toast.error("La matriz no es válida matemáticamente (Revise sumas de 100%).");
-      return;
-    }
     const num = val === "" ? null : parseFloat(val);
     const clamped = num !== null ? Math.min(100, Math.max(0, num)) : null;
     setLocalGrades(prev => ({ ...prev, [actId]: { ...prev[actId], [estId]: clamped } }));
   };
 
   const handleGradeSave = async (actId: string, estId: string) => {
-    if (!isValidMatrix) return;
     const puntaje = localGrades[actId]?.[estId] ?? null;
     const res = await guardarCalificacionInline(estId, actId, puntaje);
     if (!res.success) toast.error(res.error);
@@ -440,24 +432,6 @@ export default function CursoPage() {
 
             {materiaActual ? (
               <>
-                {!isValidMatrix && (
-                  <Card className="bg-yellow-50 border-yellow-300">
-                    <CardContent className="p-4 flex items-start gap-3">
-                      <AlertTriangle className="text-yellow-600 shrink-0 mt-1" />
-                      <div>
-                        <h4 className="font-bold text-yellow-800">¡Advertencia! La configuración matemática está incompleta.</h4>
-                        <ul className="list-disc pl-5 text-sm text-yellow-700 mt-1">
-                          {sumRAs !== 100 && <li>La suma de todos los RAs es {sumRAs}%. Debe ser 100%.</li>}
-                          {invalidRAs.map(ra => (
-                            <li key={ra.id}>Las actividades del <strong>{ra.codigoRA}</strong> suman {ra.actividades.reduce((a,b)=>a+b.ponderacion,0)}%. Debe ser 100%.</li>
-                          ))}
-                        </ul>
-                        <p className="text-xs font-semibold text-yellow-800 mt-2">Los campos de calificación han sido bloqueados hasta corregir la estructura.</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
                 <Card className="shadow-sm">
                   <CardHeader className="pb-0 pt-4 flex flex-row items-center justify-between flex-wrap gap-4">
                     <div>
@@ -545,8 +519,7 @@ export default function CursoPage() {
                                       <input
                                         type="number" min={0} max={100} step={0.1}
                                         placeholder="-"
-                                        disabled={!isValidMatrix}
-                                        className="w-16 h-8 text-center text-sm border rounded mx-auto disabled:bg-gray-100 disabled:text-gray-400 focus:ring-2 focus:ring-blue-500 outline-none"
+                                        className="w-16 h-8 text-center text-sm border rounded mx-auto focus:ring-2 focus:ring-blue-500 outline-none"
                                         value={localGrades[act.id]?.[est.id] ?? ""}
                                         onChange={(e) => handleGradeChange(act.id, est.id, e.target.value)}
                                         onBlur={() => handleGradeSave(act.id, est.id)}
@@ -695,6 +668,9 @@ export default function CursoPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{formRa.id ? "Editar" : "Nuevo"} Resultado de Aprendizaje (RA)</DialogTitle>
+              <DialogDescription>
+                Define un RA con su ponderación. Los RAs pueden crearse libremente; la suma de 100% es solo referencia.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <div className="grid grid-cols-4 items-center gap-4">
@@ -707,7 +683,7 @@ export default function CursoPage() {
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label className="text-right">Ponderación (%)</Label>
-                <Input type="number" min={1} max={100} className="col-span-3" value={formRa.pond} onChange={e => setFormRa({...formRa, pond: parseInt(e.target.value)||0})} />
+                <Input type="number" min={1} max={100} className="col-span-3" value={formRa.pond || ""} onChange={e => setFormRa({...formRa, pond: parseInt(e.target.value)||0})} />
               </div>
               <div className="flex justify-between mt-4">
                 {formRa.id && <Button variant="destructive" onClick={async () => { await eliminarRA(formRa.id); setModalType(null); fetchCurso(); }}><Trash2 className="w-4 h-4 mr-2"/> Eliminar RA</Button>}
