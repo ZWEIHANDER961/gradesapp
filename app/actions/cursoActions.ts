@@ -72,6 +72,41 @@ export async function asignarMateriaExistente(cursoId: string, materiaId: string
   }
 }
 
+export async function crearCurso(nombre: string): Promise<ActionResult<string>> {
+  try {
+    const curso = await prisma.cursoSeccion.create({ data: { nombre } });
+    return { success: true, data: curso.id };
+  } catch (error) {
+    return { success: false, error: "Error al crear curso" };
+  }
+}
+
+export async function obtenerTodosLosCursos(): Promise<ActionResult<any[]>> {
+  try {
+    const cursos = await prisma.cursoSeccion.findMany({
+      include: {
+        estudiantes: true,
+        materias: true,
+        _count: {
+          select: { estudiantes: true }
+        }
+      },
+      orderBy: { nombre: "asc" },
+    });
+    const data = cursos.map(c => ({
+      ...c,
+      _count: {
+        estudiantes: c._count.estudiantes,
+        materias: c.materias.length,
+        ras: c.materias.reduce((acc, m) => acc + (m as any).ras.length, 0)
+      }
+    }));
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: "Error al obtener cursos" };
+  }
+}
+
 export async function eliminarCurso(id: string): Promise<ActionResult<boolean>> {
   try {
     await prisma.cursoSeccion.delete({ where: { id } });
