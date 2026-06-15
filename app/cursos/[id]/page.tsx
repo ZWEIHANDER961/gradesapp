@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, BookOpen, Pencil, FileUp, Calculator, Link as LinkIcon, Search, Download, UserPlus } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, BookOpen, Pencil, FileUp, Calculator, Link as LinkIcon, Search, Download, UserPlus, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import * as xlsx from "xlsx";
 import type { ActionResult } from "@/types";
@@ -308,11 +310,23 @@ export default function CursoPage() {
     toast.success("Excel generado con éxito");
   };
 
-  if (loading) return <div className="p-8"><Skeleton className="h-8 w-64 mb-6" /><Skeleton className="h-96" /></div>;
+  if (loading) return (
+    <div className="min-h-screen bg-gray-50/50 pb-20">
+      <header className="border-b bg-white">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex h-16 items-center">
+          <Skeleton className="h-6 w-64" />
+        </div>
+      </header>
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <Skeleton className="h-96 w-full rounded-lg" />
+      </main>
+    </div>
+  );
   if (!curso) return <div className="p-8">Curso no encontrado.</div>;
 
   return (
-    <div className="min-h-screen bg-gray-50/50 pb-20">
+    <TooltipProvider>
+      <div className="min-h-screen bg-gray-50/50 pb-20">
       <header className="border-b bg-white shadow-sm">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex h-16 items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => router.push("/dashboard")}><ArrowLeft className="h-5 w-5" /></Button>
@@ -470,8 +484,18 @@ export default function CursoPage() {
                             <th colSpan={raActual.actividades.length || 1} className="bg-blue-50 border-b border-r px-2 py-2 text-center align-top relative group">
                               <div className="flex justify-center items-center gap-2 font-bold text-blue-900">
                                 {raActual.codigoRA} <span className="text-blue-600">({raActual.ponderacion}%)</span>
-                                <button className="opacity-0 group-hover:opacity-100 p-1 hover:bg-blue-200 rounded text-blue-700" onClick={() => { setFormRa({ id: raActual.id, cod: raActual.codigoRA, desc: raActual.descripcion, pond: raActual.ponderacion }); setModalType("ra"); }}><Pencil className="w-3 h-3"/></button>
-                                <button className="opacity-0 group-hover:opacity-100 p-1 hover:bg-blue-200 rounded text-green-700" onClick={() => { setFormAct({ id: "", raId: raActual.id, nom: "", pond: 0 }); setModalType("act"); }} title="Añadir Actividad"><Plus className="w-4 h-4"/></button>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button className="opacity-0 group-hover:opacity-100 p-1 hover:bg-blue-200 rounded text-blue-700" onClick={() => { setFormRa({ id: raActual.id, cod: raActual.codigoRA, desc: raActual.descripcion, pond: raActual.ponderacion }); setModalType("ra"); }}><Pencil className="w-3 h-3"/></button>
+                                  </TooltipTrigger>
+                                  <TooltipContent><p>Editar RA</p></TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button className="opacity-0 group-hover:opacity-100 p-1 hover:bg-blue-200 rounded text-green-700" onClick={() => { setFormAct({ id: "", raId: raActual.id, nom: "", pond: 0 }); setModalType("act"); }} title="Añadir Actividad"><Plus className="w-4 h-4"/></button>
+                                  </TooltipTrigger>
+                                  <TooltipContent><p>Añadir Actividad</p></TooltipContent>
+                                </Tooltip>
                               </div>
                               <p className="text-[10px] text-blue-700/70 truncate max-w-[200px] mx-auto font-normal" title={raActual.descripcion}>{raActual.descripcion}</p>
                             </th>
@@ -685,10 +709,26 @@ export default function CursoPage() {
                 <Label className="text-right">Ponderación (%)</Label>
                 <Input type="number" min={1} max={100} className="col-span-3" value={formRa.pond || ""} onChange={e => setFormRa({...formRa, pond: parseInt(e.target.value)||0})} />
               </div>
-              <div className="flex justify-between mt-4">
-                {formRa.id && <Button variant="destructive" onClick={async () => { await eliminarRA(formRa.id); setModalType(null); fetchCurso(); }}><Trash2 className="w-4 h-4 mr-2"/> Eliminar RA</Button>}
-                <Button onClick={submitRA} className={!formRa.id ? "w-full" : ""}>Guardar RA</Button>
-              </div>
+<div className="flex justify-between mt-4">
+                 {formRa.id && (
+                   <AlertDialog>
+                     <AlertDialogTrigger asChild>
+                       <Button variant="destructive"><Trash2 className="w-4 h-4 mr-2"/> Eliminar RA</Button>
+                     </AlertDialogTrigger>
+                     <AlertDialogContent>
+                       <AlertDialogHeader>
+                         <AlertDialogTitle>¿Eliminar RA?</AlertDialogTitle>
+                         <AlertDialogDescription>Esta acción no se puede deshacer. Se borrarán todas las actividades y calificaciones relacionadas.</AlertDialogDescription>
+                       </AlertDialogHeader>
+                       <AlertDialogFooter>
+                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                         <AlertDialogAction onClick={async () => { await eliminarRA(formRa.id); setModalType(null); fetchCurso(); }}>Eliminar</AlertDialogAction>
+                       </AlertDialogFooter>
+                     </AlertDialogContent>
+                   </AlertDialog>
+                 )}
+                 <Button onClick={submitRA} className={!formRa.id ? "w-full" : ""}>Guardar RA</Button>
+               </div>
             </div>
           </DialogContent>
         </Dialog>
@@ -707,15 +747,31 @@ export default function CursoPage() {
                 <Label className="text-right">Peso (%)</Label>
                 <Input type="number" min={1} max={100} className="col-span-3" value={formAct.pond} onChange={e => setFormAct({...formAct, pond: parseInt(e.target.value)||0})} />
               </div>
-              <div className="flex justify-between mt-4">
-                {formAct.id && <Button variant="destructive" onClick={async () => { await eliminarActividad(formAct.id); setModalType(null); fetchCurso(); }}><Trash2 className="w-4 h-4 mr-2"/> Eliminar</Button>}
-                <Button onClick={submitActividad} className={!formAct.id ? "w-full" : ""}>Guardar Actividad</Button>
-              </div>
+<div className="flex justify-between mt-4">
+                 {formAct.id && (
+                   <AlertDialog>
+                     <AlertDialogTrigger asChild>
+                       <Button variant="destructive"><Trash2 className="w-4 h-4 mr-2"/> Eliminar</Button>
+                     </AlertDialogTrigger>
+                     <AlertDialogContent>
+                       <AlertDialogHeader>
+                         <AlertDialogTitle>¿Eliminar Actividad?</AlertDialogTitle>
+                         <AlertDialogDescription>Se borrarán todas las calificaciones de esta actividad.</AlertDialogDescription>
+                       </AlertDialogHeader>
+                       <AlertDialogFooter>
+                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                         <AlertDialogAction onClick={async () => { await eliminarActividad(formAct.id); setModalType(null); fetchCurso(); }}>Eliminar</AlertDialogAction>
+                       </AlertDialogFooter>
+                     </AlertDialogContent>
+                   </AlertDialog>
+                 )}
+                 <Button onClick={submitActividad} className={!formAct.id ? "w-full" : ""}>Guardar Actividad</Button>
+               </div>
             </div>
           </DialogContent>
         </Dialog>
 
       </main>
-    </div>
+    </TooltipProvider>
   );
 }

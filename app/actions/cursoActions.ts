@@ -86,7 +86,11 @@ export async function obtenerTodosLosCursos(): Promise<ActionResult<any[]>> {
     const cursos = await prisma.cursoSeccion.findMany({
       include: {
         estudiantes: true,
-        materias: true,
+        materias: {
+          include: {
+            ras: true
+          }
+        },
         _count: {
           select: { estudiantes: true }
         }
@@ -98,7 +102,7 @@ export async function obtenerTodosLosCursos(): Promise<ActionResult<any[]>> {
       _count: {
         estudiantes: c._count.estudiantes,
         materias: c.materias.length,
-        ras: c.materias.reduce((acc, m) => acc + (m as any).ras.length, 0)
+        ras: c.materias.reduce((acc, m) => acc + m.ras.length, 0)
       }
     }));
     return { success: true, data };
