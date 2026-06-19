@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Trash2 } from "lucide-react";
 
 import type { ActionResult } from "@/types";
-import { crearCurso } from "@/app/actions/cursoActions";
-import { obtenerTodosLosCursos } from "@/app/actions/cursoActions";
+import { crearCurso, obtenerTodosLosCursos, eliminarCurso } from "@/app/actions/cursoActions";
 
 interface Curso {
   id: string;
@@ -47,6 +48,14 @@ export default function DashboardPage() {
     if (res.success) {
       setNombreCurso("");
       setModalCrear(false);
+      fetchCursos();
+    }
+  };
+
+  const handleEliminarCurso = async (id: string, nombre: string) => {
+    if (!confirm(`¿Eliminar el curso "${nombre}"? Esta acción no se puede deshacer.`)) return;
+    const res = await eliminarCurso(id);
+    if (res.success) {
       fetchCursos();
     }
   };
@@ -198,11 +207,34 @@ export default function DashboardPage() {
                           <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Materias</div>
                         </div>
                       </div>
+                      <div className="flex gap-2 mt-2">
+                        <Button variant="ghost" className="flex-1 group-hover:bg-blue-50 transition-colors">
+                          <BookOpen className="w-4 h-4 mr-2" />
+                          Abrir Curso
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="shrink-0 text-red-500 hover:text-red-700 hover:bg-red-50">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Eliminar Curso</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                ¿Seguro que quieres eliminar "{curso.nombre}"? Se borrarán todos sus estudiantes y calificaciones.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleEliminarCurso(curso.id, curso.nombre)} className="bg-red-600 hover:bg-red-700">
+                                Eliminar
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </div>
-                    <Button variant="ghost" className="w-full mt-4 group-hover:bg-blue-50 transition-colors">
-                      <BookOpen className="w-4 h-4 mr-2" />
-                      Abrir Curso
-                    </Button>
                   </CardContent>
                 </Card>
               </Link>

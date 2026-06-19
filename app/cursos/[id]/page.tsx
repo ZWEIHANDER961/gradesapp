@@ -772,6 +772,7 @@ export default function CursoPage() {
         </Dialog>
 
       </main>
+    </div>
     </TooltipProvider>
   );
 }
