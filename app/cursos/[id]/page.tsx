@@ -23,7 +23,7 @@ import { guardarCalificacionInline } from "@/app/actions/calificacionActions";
 import { importarExcelEstudiantes, actualizarEstudiante, eliminarEstudiante, crearEstudiante } from "@/app/actions/estudianteActions";
 import { crearRA, actualizarRA, eliminarRA, crearActividad, actualizarActividad, eliminarActividad } from "@/app/actions/raActions";
 import { obtenerTodasMaterias } from "@/app/actions/materiaActions";
-import { asignarMateriaExistente, obtenerCursoDetalle } from "@/app/actions/cursoActions";
+import { asignarMateriaExistente, obtenerCursoDetalle, eliminarCurso } from "@/app/actions/cursoActions";
 
 // --- INTERFACES ESTRICTAS ---
 interface Calificacion {
@@ -333,6 +333,31 @@ export default function CursoPage() {
           <BookOpen className="h-6 w-6 text-blue-600" />
           <h1 className="text-xl font-bold text-gray-900">{curso.nombre}</h1>
         </div>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" size="sm">
+              <Trash2 className="w-4 h-4 mr-2" />
+              Eliminar Curso
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar este Curso?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Se borrarán permanentemente todos los estudiantes, materias, RAs y calificaciones.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={async () => { 
+                await eliminarCurso(cursoId); 
+                router.push("/dashboard"); 
+              }} className="bg-red-600">
+                Eliminar Definitivamente
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
