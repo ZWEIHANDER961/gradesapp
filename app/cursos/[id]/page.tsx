@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, BookOpen, Pencil, FileUp, Calculator, Link as LinkIcon, Search, Download, UserPlus, AlertCircle } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, BookOpen, Pencil, FileUp, Calculator, Link as LinkIcon, Search, Download, UserPlus, AlertCircle, HelpCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -91,7 +91,7 @@ export default function CursoPage() {
   const [localGrades, setLocalGrades] = useState<Record<string, Record<string, number | null>>>({});
 
   // Modals States
-  const [modalType, setModalType] = useState<"estudiante"|"excel"|"ra"|"act"|"asignarMateria"|null>(null);
+  const [modalType, setModalType] = useState<"estudiante"|"excel"|"ra"|"act"|"asignarMateria"|"explicacion"|null>(null);
   const [formEst, setFormEst] = useState({ id: "", num: 0, nom: "", ape: "" });
   const [formRa, setFormRa] = useState({ id: "", cod: "", desc: "", pond: 0 });
   const [formAct, setFormAct] = useState({ id: "", raId: "", nom: "", pond: 0 });
@@ -319,6 +319,26 @@ export default function CursoPage() {
       </header>
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <Skeleton className="h-96 w-full rounded-lg" />
+        <Dialog open={modalType === "explicacion"} onOpenChange={(o) => !o && setModalType(null)}>
+          <DialogContent classDialog="max-w-md">
+            <DialogHeader>
+              <DialogTitle>📊 Cálculo (Rompecabezas)</DialogTitle>
+              <DialogDescription>
+                Muestestra el aporte del RA: Promedio × Ponderación
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 pt-3 text-sm">
+              <p className="font-semibold text-blue-800">Fórmula:</p>
+              <p className="text-gray-600">
+                <strong>Cálculo RA</strong> = Promedio RA × (Ponderación RA / 100)
+              </p>
+              <p className="text-gray-500 text-xs">
+                Ejemplo: RA=85, Ponderación=30% → 85 × 0.30 = 25.5
+              </p>
+            </div>
+          </DialogContent>
+        </Dialog>
+
       </main>
     </div>
   );
@@ -527,6 +547,9 @@ export default function CursoPage() {
                             <th rowSpan={2} className="bg-indigo-100 text-indigo-900 border-b border-l px-4 py-3 text-center font-bold w-24 shadow-[-1px_0_0_0_#e5e7eb]">
                               Prom. RA
                             </th>
+                            <th rowSpan={2} className="bg-blue-50 border-b border-l px-4 py-3 text-center font-bold w-32 shadow-[-1px_0_0_0_#e5e7eb]">
+                              Cálculo
+                            </th>
                             <th rowSpan={2} className="bg-gray-800 text-white border-b border-l px-4 py-3 text-center font-bold w-24 shadow-[-1px_0_0_0_#e5e7eb]">
                               Nota Final
                             </th>
@@ -588,7 +611,7 @@ export default function CursoPage() {
                           })}
                           {estudiantesFiltrados.length === 0 && (
                             <tr>
-                              <td colSpan={raActual.actividades.length + 3} className="text-center py-8 text-gray-500">
+                              <td colSpan={raActual.actividades.length + 4} className="text-center py-8 text-gray-500">
                                 No se encontraron estudiantes que coincidan con la búsqueda.
                               </td>
                             </tr>
@@ -796,8 +819,68 @@ export default function CursoPage() {
           </DialogContent>
         </Dialog>
 
+        <Dialog open={modalType === "explicacion"} onOpenChange={(o) => !o && setModalType(null)}>
+          <DialogContent classDialog="max-w-md">
+            <DialogHeader>
+              <DialogTitle>📊 Cálculo (Rompecabezas)</DialogTitle>
+              <DialogDescription>
+                Muestestra el aporte del RA: Promedio × Ponderación
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 pt-3 text-sm">
+              <p className="font-semibold text-blue-800">Fórmula:</p>
+              <p className="text-gray-600">
+                <strong>Cálculo RA</strong> = Promedio RA × (Ponderación RA / 100)
+              </p>
+              <p className="text-gray-500 text-xs">
+                Ejemplo: RA=85, Ponderación=30% → 85 × 0.30 = 25.5
+              </p>
+            </div>
+          </DialogContent>
+        </Dialog>
+
       </main>
     </div>
     </TooltipProvider>
   );
-}
+        <Dialog open={modalType === "explicacion"} onOpenChange={(o) => !o && setModalType(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>📊 Cálculo (Rompecabezas)</DialogTitle>
+              <DialogDescription>
+                Muestestra el aporte del RA: Promedio × Ponderación
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 pt-3 text-sm">
+              <p className="font-semibold text-blue-800">Fórmula:</p>
+              <p className="text-gray-600">
+                <strong>Cálculo RA</strong> = Promedio RA × (Ponderación RA / 100)
+              </p>
+              <p className="text-gray-500 text-xs">
+                Ejemplo: RA=85, Ponderación=30% → 85 × 0.30 = 25.5
+              </p>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={modalType === "explicacion"} onOpenChange={(o) => !o && setModalType(null)}>
+          <DialogContent classDialog="max-w-md">
+            <DialogHeader>
+              <DialogTitle>📊 Cálculo (Rompecabezas)</DialogTitle>
+              <DialogDescription>
+                Muestestra el aporte del RA: Promedio × Ponderación
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 pt-3 text-sm">
+              <p className="font-semibold text-blue-800">Fórmula:</p>
+              <p className="text-gray-600">
+                <strong>Cálculo RA</strong> = Promedio RA × (Ponderación RA / 100)
+              </p>
+              <p className="text-gray-500 text-xs">
+                Ejemplo: RA=85, Ponderación=30% → 85 × 0.30 = 25.5
+              </p>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+      </main>
