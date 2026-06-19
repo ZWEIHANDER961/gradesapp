@@ -102,7 +102,7 @@ export async function obtenerTodosLosCursos(): Promise<ActionResult<any[]>> {
       _count: {
         estudiantes: c._count.estudiantes,
         materias: c.materias.length,
-        ras: c.materias.reduce((acc, m) => acc + m.ras.length, 0)
+        ras: c.materias.reduce((acc, m) => acc + (m.ras?.length || 0), 0)
       }
     }));
     return { success: true, data };
