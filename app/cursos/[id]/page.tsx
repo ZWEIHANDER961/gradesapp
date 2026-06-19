@@ -157,17 +157,12 @@ export default function CursoPage() {
   const isValidMatrix = sumRAs === 100 && invalidRAs.length === 0;
 
   const handleGradeChange = (actId: string, estId: string, val: string) => {
-    if (!isValidMatrix) {
-      toast.error("La matriz no es válida matemáticamente (Revise sumas de 100%).");
-      return;
-    }
     const num = val === "" ? null : parseFloat(val);
     const clamped = num !== null ? Math.min(100, Math.max(0, num)) : null;
     setLocalGrades(prev => ({ ...prev, [actId]: { ...prev[actId], [estId]: clamped } }));
   };
 
   const handleGradeSave = async (actId: string, estId: string) => {
-    if (!isValidMatrix) return;
     const puntaje = localGrades[actId]?.[estId] ?? null;
     const res = await guardarCalificacionInline(estId, actId, puntaje);
     if (!res.success) toast.error(res.error);
@@ -310,6 +305,10 @@ export default function CursoPage() {
       
       const prom = calculateRANota(raActual.id, est.id);
       fila["Promedio RA"] = prom !== null ? prom : "S/E";
+      
+      const calculo = prom !== null ? round1(prom * (raActual.ponderacion / 100)) : "S/E";
+      fila["Cálculo (Aporte)"] = calculo;
+
       return fila;
     });
 
@@ -489,14 +488,14 @@ export default function CursoPage() {
                       <CardContent className="p-4 flex items-start gap-3">
                         <AlertTriangle className="text-yellow-600 shrink-0 mt-1" />
                         <div>
-                          <h4 className="font-bold text-yellow-800">¡Advertencia! La configuración matemática está incompleta.</h4>
+                          <h4 className="font-bold text-yellow-800">¡Aviso! La configuración matemática está incompleta.</h4>
                           <ul className="list-disc pl-5 text-sm text-yellow-700 mt-1">
-                            {sumRAs !== 100 && <li>La suma de todos los RAs es {sumRAs}%. Debe ser 100%.</li>}
+                            {sumRAs !== 100 && <li>La suma de todos los RAs es {sumRAs}%. Debería ser 100%.</li>}
                             {invalidRAs.map((ra) => (
-                              <li key={ra.id}>Las actividades del <strong>{ra.codigoRA}</strong> suman {ra.actividades.reduce((a,b)=>a+b.ponderacion,0)}%. Debe ser 100%.</li>
+                              <li key={ra.id}>Las actividades del <strong>{ra.codigoRA}</strong> suman {ra.actividades.reduce((a,b)=>a+b.ponderacion,0)}%. Debería ser 100%.</li>
                             ))}
                           </ul>
-                          <p className="text-xs font-semibold text-yellow-800 mt-2">Los campos de calificación han sido bloqueados hasta corregir la estructura.</p>
+                          <p className="text-xs font-semibold text-yellow-800 mt-2">Te recomendamos corregir la estructura para que los cálculos finales sean exactos.</p>
                         </div>
                       </CardContent>
                     </Card>
@@ -558,6 +557,9 @@ export default function CursoPage() {
                               <th rowSpan={2} className="bg-indigo-100 text-indigo-900 border-b border-l px-4 py-3 text-center font-bold w-24 shadow-[-1px_0_0_0_#e5e7eb]">
                                 Prom. RA
                               </th>
+                              <th rowSpan={2} className="bg-blue-50 border-b border-l px-4 py-3 text-center font-bold w-32 shadow-[-1px_0_0_0_#e5e7eb]">
+                                Cálculo
+                              </th>
                               <th rowSpan={2} className="bg-gray-800 text-white border-b border-l px-4 py-3 text-center font-bold w-24 shadow-[-1px_0_0_0_#e5e7eb]">
                                 Nota Final
                               </th>
@@ -599,8 +601,7 @@ export default function CursoPage() {
                                         <input
                                           type="number" min={0} max={100} step={0.1}
                                           placeholder="-"
-                                          disabled={!isValidMatrix}
-                                          className="w-16 h-8 text-center text-sm border rounded mx-auto disabled:bg-gray-100 disabled:text-gray-400 focus:ring-2 focus:ring-blue-500 outline-none"
+                                          className="w-16 h-8 text-center text-sm border rounded mx-auto focus:ring-2 focus:ring-blue-500 outline-none"
                                           value={localGrades[act.id]?.[est.id] ?? ""}
                                           onChange={(e) => handleGradeChange(act.id, est.id, e.target.value)}
                                           onBlur={() => handleGradeSave(act.id, est.id)}
@@ -612,6 +613,9 @@ export default function CursoPage() {
                                   <td className="px-2 py-2 border-l text-center bg-indigo-50 font-semibold text-indigo-700 shadow-[-1px_0_0_0_#e5e7eb]">
                                     {nRa !== null ? nRa.toFixed(1) : "-"}
                                   </td>
+                                  <td className="px-2 py-2 border-l text-center bg-blue-50/50 font-semibold text-blue-700 shadow-[-1px_0_0_0_#e5e7eb]">
+                                    {nRa !== null ? (nRa * (raActual.ponderacion / 100)).toFixed(1) : "-"}
+                                  </td>
                                   <td className="px-2 py-2 border-l text-center bg-gray-50 font-bold shadow-[-1px_0_0_0_#e5e7eb]">
                                     {nf !== null ? <Badge variant="outline" className={`text-sm ${colorBadge}`}>{nf.toFixed(1)}</Badge> : <span className="text-gray-400">-</span>}
                                   </td>
@@ -620,7 +624,7 @@ export default function CursoPage() {
                             })}
                             {estudiantesFiltrados.length === 0 && (
                               <tr>
-                                <td colSpan={raActual.actividades.length + 3} className="text-center py-8 text-gray-500">
+                                <td colSpan={raActual.actividades.length + 4} className="text-center py-8 text-gray-500">
                                   No se encontraron estudiantes que coincidan con la búsqueda.
                                 </td>
                               </tr>
