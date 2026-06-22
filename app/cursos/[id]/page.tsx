@@ -541,13 +541,13 @@ export default function CursoPage() {
                                   {raActual.codigoRA} <span className="text-blue-600">({raActual.ponderacion}%)</span>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <button className="opacity-0 group-hover:opacity-100 p-1 hover:bg-blue-200 rounded text-blue-700" onClick={() => { setFormRa({ id: raActual.id, cod: raActual.codigoRA, desc: raActual.descripcion, pond: raActual.ponderacion }); setModalType("ra"); }}><Pencil className="w-3 h-3"/></button>
+                                      <button className="opacity-0 group-hover:opacity-100 p-1 hover:bg-blue-200 rounded text-blue-700" onClick={() => { setFormRa({ id: raActual.id, cod: raActual.codigoRA, desc: raActual.descripcion, pond: raActual.ponderacion }); setModalType("ra"); }}><Pencil className="w-3 h-3"/>Editar RA</button>
                                     </TooltipTrigger>
                                     <TooltipContent><p>Editar RA</p></TooltipContent>
                                   </Tooltip>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <button className="opacity-0 group-hover:opacity-100 p-1 hover:bg-blue-200 rounded text-green-700" onClick={() => { setFormAct({ id: "", raId: raActual.id, nom: "", pond: 0 }); setModalType("act"); }} title="Añadir Actividad"><Plus className="w-4 h-4"/></button>
+                                      <button className="opacity-0 group-hover:opacity-100 p-1 hover:bg-blue-200 rounded text-green-700" onClick={() => { setFormAct({ id: "", raId: raActual.id, nom: "", pond: 0 }); setModalType("act"); }} title="Añadir Actividad"><Plus className="w-4 h-4"/> Añadir Actividad</button>
                                     </TooltipTrigger>
                                     <TooltipContent><p>Añadir Actividad</p></TooltipContent>
                                   </Tooltip>
